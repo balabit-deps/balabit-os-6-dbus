@@ -1,0 +1,5 @@
+Don-t-abort-on-fatal-warnings-by-default.patch
+Doxyfile.in-do-not-put-timestamps-in-HTML-for-reprod.patch
+dont-stop-dbus.patch
+aa-get-connection-apparmor-security-context.patch
+session.conf-system.conf-include-legacy-files-as-.dpkg-ba.patch

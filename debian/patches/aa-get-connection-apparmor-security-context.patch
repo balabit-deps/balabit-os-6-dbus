@@ -1,0 +1,183 @@
+Description: Add DBus method to return the AA context of a connection
+ Allows the AppArmor label that is attached to a D-Bus connection to be
+ queried using the unique connection name.
+ .
+ For example,
+ $ dbus-send --print-reply --system --dest=org.freedesktop.DBus \
+   /org/freedesktop/DBus \
+   org.freedesktop.DBus.GetConnectionAppArmorSecurityContext string::1.4
+ method return sender=org.freedesktop.DBus -> dest=:1.50 reply_serial=2
+    string "/usr/sbin/cupsd"
+ .
+ [Altered by Simon McVittie: survive non-UTF-8 contexts which
+ would otherwise be a local denial of service, except that Ubuntu
+ inherits a non-fatal warnings patch from Debian; new commit message
+ taken from the Ubuntu changelog; do not emit unreachable code if
+ AppArmor is disabled.]
+Author: Tyler Hicks <tyhicks@canonical.com>
+Forwarded: not-needed
+---
+ bus/apparmor.c       |   15 ++++++++
+ bus/apparmor.h       |    1 
+ bus/driver.c         |   89 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ dbus/dbus-protocol.h |    2 +
+ 4 files changed, 107 insertions(+)
+
+Index: dbus-1.8.12/bus/apparmor.c
+===================================================================
+--- dbus-1.8.12.orig/bus/apparmor.c	2015-02-19 09:28:49.935463892 -0600
++++ dbus-1.8.12/bus/apparmor.c	2015-02-19 09:28:49.923463949 -0600
+@@ -528,6 +528,21 @@ bus_apparmor_enabled (void)
+ #endif
+ }
+ 
++const char*
++bus_apparmor_confinement_get_label (BusAppArmorConfinement *confinement)
++{
++#ifdef HAVE_APPARMOR
++  if (!apparmor_enabled)
++    return NULL;
++
++  _dbus_assert (confinement != NULL);
++
++  return confinement->label;
++#else
++  return NULL;
++#endif
++}
++
+ void
+ bus_apparmor_confinement_unref (BusAppArmorConfinement *confinement)
+ {
+Index: dbus-1.8.12/bus/apparmor.h
+===================================================================
+--- dbus-1.8.12.orig/bus/apparmor.h	2015-02-19 09:28:49.935463892 -0600
++++ dbus-1.8.12/bus/apparmor.h	2015-02-19 09:28:49.923463949 -0600
+@@ -39,6 +39,7 @@ dbus_bool_t bus_apparmor_enabled (void);
+ 
+ void bus_apparmor_confinement_unref (BusAppArmorConfinement *confinement);
+ void bus_apparmor_confinement_ref (BusAppArmorConfinement *confinement);
++const char* bus_apparmor_confinement_get_label (BusAppArmorConfinement *confinement);
+ BusAppArmorConfinement* bus_apparmor_init_connection_confinement (DBusConnection *connection,
+                                                                   DBusError      *error);
+ 
+Index: dbus-1.8.12/bus/driver.c
+===================================================================
+--- dbus-1.8.12.orig/bus/driver.c	2015-02-19 09:28:49.935463892 -0600
++++ dbus-1.8.12/bus/driver.c	2015-02-19 09:28:49.927463930 -0600
+@@ -1620,6 +1620,91 @@ bus_driver_handle_get_connection_credent
+ }
+ 
+ static dbus_bool_t
++bus_driver_handle_get_connection_apparmor_security_context (DBusConnection *connection,
++                                                            BusTransaction *transaction,
++                                                            DBusMessage    *message,
++                                                            DBusError      *error)
++{
++  const char *service;
++  DBusString str;
++  BusRegistry *registry;
++  BusService *serv;
++  DBusConnection *primary_connection;
++  DBusMessage *reply;
++  BusAppArmorConfinement *confinement;
++  const char *label;
++
++  _DBUS_ASSERT_ERROR_IS_CLEAR (error);
++
++  registry = bus_connection_get_registry (connection);
++
++  service = NULL;
++  reply = NULL;
++  confinement = NULL;
++
++  if (! dbus_message_get_args (message, error, DBUS_TYPE_STRING, &service,
++                               DBUS_TYPE_INVALID))
++      goto failed;
++
++  _dbus_verbose ("asked for security context of connection %s\n", service);
++
++  _dbus_string_init_const (&str, service);
++  serv = bus_registry_lookup (registry, &str);
++  if (serv == NULL)
++    {
++      dbus_set_error (error,
++                      DBUS_ERROR_NAME_HAS_NO_OWNER,
++                      "Could not get security context of name '%s': no such name", service);
++      goto failed;
++    }
++
++  primary_connection = bus_service_get_primary_owners_connection (serv);
++
++  reply = dbus_message_new_method_return (message);
++  if (reply == NULL)
++    goto oom;
++
++  confinement = bus_connection_dup_apparmor_confinement (primary_connection);
++  label = bus_apparmor_confinement_get_label (confinement);
++
++  if (label == NULL)
++    {
++      dbus_set_error (error,
++                      DBUS_ERROR_APPARMOR_SECURITY_CONTEXT_UNKNOWN,
++                      "Could not determine security context for '%s'", service);
++      goto failed;
++    }
++
++  if (!dbus_validate_utf8 (label, error))
++    goto failed;
++
++  if (! dbus_message_append_args (reply,
++                                  DBUS_TYPE_STRING,
++                                  &label,
++                                  DBUS_TYPE_INVALID))
++    goto failed;
++
++  if (! bus_transaction_send_from_driver (transaction, connection, reply))
++    goto oom;
++
++  bus_apparmor_confinement_unref (confinement);
++  dbus_message_unref (reply);
++
++  return TRUE;
++
++ oom:
++  BUS_SET_OOM (error);
++
++ failed:
++  _DBUS_ASSERT_ERROR_IS_SET (error);
++  if (confinement)
++    bus_apparmor_confinement_unref (confinement);
++  if (reply)
++    dbus_message_unref (reply);
++  return FALSE;
++}
++
++static dbus_bool_t
+ bus_driver_handle_reload_config (DBusConnection *connection,
+ 				 BusTransaction *transaction,
+ 				 DBusMessage    *message,
+@@ -1791,6 +1876,10 @@ static const MessageHandler dbus_message
+     DBUS_TYPE_STRING_AS_STRING,
+     DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING,
+     bus_driver_handle_get_connection_selinux_security_context },
++  { "GetConnectionAppArmorSecurityContext",
++    DBUS_TYPE_STRING_AS_STRING,
++    DBUS_TYPE_STRING_AS_STRING,
++    bus_driver_handle_get_connection_apparmor_security_context },
+   { "ReloadConfig",
+     "",
+     "",
+Index: dbus-1.8.12/dbus/dbus-protocol.h
+===================================================================
+--- dbus-1.8.12.orig/dbus/dbus-protocol.h	2015-02-19 09:28:49.935463892 -0600
++++ dbus-1.8.12/dbus/dbus-protocol.h	2015-02-19 09:28:49.927463930 -0600
+@@ -439,6 +439,8 @@ extern "C" {
+ #define DBUS_ERROR_INVALID_FILE_CONTENT       "org.freedesktop.DBus.Error.InvalidFileContent"
+ /** Asked for SELinux security context and it wasn't available. */
+ #define DBUS_ERROR_SELINUX_SECURITY_CONTEXT_UNKNOWN    "org.freedesktop.DBus.Error.SELinuxSecurityContextUnknown"
++/** Asked for AppArmor security context and it wasn't available. */
++#define DBUS_ERROR_APPARMOR_SECURITY_CONTEXT_UNKNOWN   "org.freedesktop.DBus.Error.AppArmorSecurityContextUnknown"
+ /** Asked for ADT audit data and it wasn't available. */
+ #define DBUS_ERROR_ADT_AUDIT_DATA_UNKNOWN     "org.freedesktop.DBus.Error.AdtAuditDataUnknown"
+ /** There's already an object with the requested object path. */
