@@ -1,3 +1,13 @@
+dbus (1.10.6-1ubuntu3.1) xenial-security; urgency=medium
+
+  * SECURITY UPDATE: arbitrary code execution or denial of service via
+    format string vulnerability (likely limited to uid 0 only)
+    - debian/patches/format_string.patch: do not use non-literal format
+      string in bus/activation.c.
+    - No CVE number
+
+ -- Marc Deslauriers <marc.deslauriers@ubuntu.com>  Wed, 12 Oct 2016 08:33:00 -0400
+
 dbus (1.10.6-1ubuntu3) xenial; urgency=medium
 
   * debian/dbus.preinst: divert the dbus-daemon-launch-helper if upgrading
