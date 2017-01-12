@@ -1,0 +1,36 @@
+From 2da37508fe325df49c278ff7ddfe0ab79443453e Mon Sep 17 00:00:00 2001
+From: Simon McVittie <simon.mcvittie@collabora.co.uk>
+Date: Fri, 1 Jul 2016 16:35:55 +0100
+Subject: [PATCH] WiP: make uid 0 immune to pending_fd_timeout
+
+--- dbus-1.10.6.orig/bus/connection.c
++++ dbus-1.10.6/bus/connection.c
+@@ -671,6 +671,13 @@ static dbus_bool_t
+ pending_unix_fds_timeout_cb (void *data)
+ {
+   DBusConnection *connection = data;
++  unsigned long uid;
++
++  if (dbus_connection_get_unix_user (connection, &uid) && uid == 0)
++    {
++      return TRUE;
++    }
++
+   dbus_connection_close (connection);
+   return TRUE;
+ }
+--- dbus-1.10.6.orig/test/dbus-daemon.c
++++ dbus-1.10.6/test/dbus-daemon.c
+@@ -282,6 +282,12 @@ test_no_reply (Fixture *f,
+       dbus_bus_get_unique_name (f->right_conn), "/",
+       "com.example", "WaitForever");
+ 
++  if (getuid () == 0)
++    {
++      g_test_skip ("Cannot test, uid 0 is immune to this limit");
++      return;
++    }
++
+   add_echo_filter (f);
+ 
+   if (m == NULL)

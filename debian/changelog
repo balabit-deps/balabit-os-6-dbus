@@ -1,3 +1,25 @@
+dbus (1.10.6-1ubuntu3.3) xenial; urgency=medium
+
+  * debian/dbus.user-session.upstart:
+    - Temporarily revert latest changes as those seem to cause issues in the
+      unity8 session on touch (LP: #1654241).
+
+ -- Łukasz 'sil2100' Zemczak <lukasz.zemczak@ubuntu.com>  Thu, 12 Jan 2017 19:01:21 +0100
+
+dbus (1.10.6-1ubuntu3.2) xenial; urgency=medium
+
+  [ Iain Lane ]
+  * debian/dbus.user-session.upstart: Backport zesty's version - don't launch
+    a duplicate session bus if there already is one (dbus-user-session). (LP:
+    #1644323)
+
+  [ Łukasz 'sil2100' Zemczak ]
+  * debian/patches/make-uid-0-immune-to-timeout.patch:
+    - Backport fix proposed by Simon McVittie upstream to workaround bug 
+      LP: #1591411.
+
+ -- Iain Lane <iain@orangesquash.org.uk>  Wed, 30 Nov 2016 10:48:01 +0000
+
 dbus (1.10.6-1ubuntu3.1) xenial-security; urgency=medium
 
   * SECURITY UPDATE: arbitrary code execution or denial of service via
