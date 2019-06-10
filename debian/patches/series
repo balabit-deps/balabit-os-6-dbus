@@ -5,3 +5,5 @@ aa-get-connection-apparmor-security-context.patch
 session.conf-system.conf-include-legacy-files-as-.dpkg-ba.patch
 format_string.patch
 make-uid-0-immune-to-timeout.patch
+0001-auth-Reject-DBUS_COOKIE_SHA1-for-users-other-than-th.patch
+0002-test-Add-basic-test-coverage-for-DBUS_COOKIE_SHA1.patch
