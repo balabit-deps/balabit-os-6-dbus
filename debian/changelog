@@ -1,3 +1,13 @@
+dbus (1.10.6-1ubuntu3.5) xenial; urgency=medium
+
+  * Prevent logind from leaking session files (LP: #1846787). Fixed by
+    upstream patches:
+    - d/p/Only-read-one-message-at-a-time-if-there-are-fds-pen.patch
+    - d/p/bus-Fix-timeout-restarts.patch
+    - d/p/DBusMainLoop-ensure-all-required-timeouts-are-restar.patch
+
+ -- Heitor Alves de Siqueira <halves@canonical.com>  Mon, 07 Oct 2019 08:29:04 -0300
+
 dbus (1.10.6-1ubuntu3.4) xenial-security; urgency=medium
 
   * SECURITY UPDATE: DBUS_COOKIE_SHA1 implementation flaw

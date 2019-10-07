@@ -7,3 +7,6 @@ format_string.patch
 make-uid-0-immune-to-timeout.patch
 0001-auth-Reject-DBUS_COOKIE_SHA1-for-users-other-than-th.patch
 0002-test-Add-basic-test-coverage-for-DBUS_COOKIE_SHA1.patch
+Only-read-one-message-at-a-time-if-there-are-fds-pen.patch
+bus-Fix-timeout-restarts.patch
+DBusMainLoop-ensure-all-required-timeouts-are-restar.patch
