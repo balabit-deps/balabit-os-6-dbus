@@ -10,3 +10,5 @@ make-uid-0-immune-to-timeout.patch
 Only-read-one-message-at-a-time-if-there-are-fds-pen.patch
 bus-Fix-timeout-restarts.patch
 DBusMainLoop-ensure-all-required-timeouts-are-restar.patch
+CVE-2020-12049-1.patch
+CVE-2020-12049-2.patch
